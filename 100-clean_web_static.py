@@ -1,38 +1,33 @@
 #!/usr/bin/python3
 """
-Fabric script that deletes out-of-date archives.
+Deletes out-of-date archives
+fab -f 100-clean_web_static.py do_clean:number=2
+    -i ssh-key -u ubuntu > /dev/null 2>&1
 """
 
-from fabric.api import env, run, local
 import os
+from fabric.api import *
 
-# Define the list of web servers
-env.hosts = ['xx-web-01', 'xx-web-02']  # Replace with your actual server IPs
+env.hosts = ['52.87.155.66', '54.89.109.87']
+
 
 def do_clean(number=0):
-    """
-    Deletes out-of-date archives from local and remote servers.
-
+    """Delete out-of-date archives.
     Args:
         number (int): The number of archives to keep.
+    If number is 0 or 1, keeps only the most recent archive. If
+    number is 2, keeps the most and second-most recent archives,
+    etc.
     """
-    # Clean local archives
-    local_archives = sorted(os.listdir("versions"))
-    if number == 0 or number == 1:
-        number_to_keep = 1
-    else:
-        number_to_keep = number
+    number = 1 if int(number) == 0 else int(number)
 
-    # Get the archives to delete
-    archives_to_delete = local_archives[:-number_to_keep]
-    for archive in archives_to_delete:
-        local(f"rm versions/{archive}")
-        print(f"Deleted local archive: versions/{archive}")
+    archives = sorted(os.listdir("versions"))
+    [archives.pop() for i in range(number)]
+    with lcd("versions"):
+        [local("rm ./{}".format(a)) for a in archives]
 
-    # Clean remote archives
-    for host in env.hosts:
-        run(f"cd /data/web_static/releases && ls -t | tail -n +{number_to_keep + 1} | xargs -I{{}} rm -rf {{}}")
-        print(f"Deleted outdated remote archives on {host}")
-
-# You can run the script using:
-# fab -f 100-clean_web_static.py do_clean:number=2 -i my_ssh_private_key -u ubuntu
+    with cd("/data/web_static/releases"):
+        archives = run("ls -tr").split()
+        archives = [a for a in archives if "web_static_" in a]
+        [archives.pop() for i in range(number)]
+        [run("rm -rf ./{}".format(a)) for a in archives]
