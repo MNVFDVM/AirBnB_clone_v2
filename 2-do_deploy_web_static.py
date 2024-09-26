@@ -1,56 +1,60 @@
 #!/usr/bin/python3
-# Fabric script that generates a .tgz archive from the
-# contents of the web_static folder of your AirBnB Clone repo
-# using the function do_deploy
+"""
+Fabric script that distributes an archive to web servers.
+"""
 
+from fabric.api import env, put, run
 import os
-from fabric.api import run, put, env
 
-env.hosts = ['34.204.60.80', '54.160.72.183']
-env.user = "ubuntu"
+# Define the list of web servers
+env.hosts = ['xx-web-01', 'xx-web-02']  # Replace with your actual server IPs
 
 def do_deploy(archive_path):
-    """Distribute an archive to web servers."""
+    """
+    Distributes an archive to web servers.
+
+    Args:
+        archive_path (str): The path to the archive to be deployed.
+
+    Returns:
+        bool: True if all operations are successful, otherwise False.
+    """
+    # Check if the archive exists
     if not os.path.exists(archive_path):
         return False
 
+    # Extract the filename without extension
+    file_name = os.path.basename(archive_path)
+    no_ext = file_name.split('.')[0]
+    release_path = f"/data/web_static/releases/{no_ext}/"
+
     try:
-        # Upload the archive to the /tmp/ directory on the server
-        put(archive_path, "/tmp/")
-        
-        # Extract the archive file name (without the path)
-        file_name = os.path.basename(archive_path)
-        
-        # Extract the base name (without extension)
-        file_name_no_ext = file_name.split(".")[0]
-        
-        # Set up the final release folder path
-        final_dir = f"/data/web_static/releases/{file_name_no_ext}/"
-        
-        # Create the directory where the archive will be unpacked
-        run(f"mkdir -p {final_dir}")
-        
-        # Unpack the archive in the newly created directory
-        run(f"tar -xzf /tmp/{file_name} -C {final_dir}")
-        
-        # Remove the archive from the /tmp/ directory
+        # Upload the archive to the /tmp/ directory of the web server
+        put(archive_path, f"/tmp/{file_name}")
+
+        # Create the release directory
+        run(f"mkdir -p {release_path}")
+
+        # Uncompress the archive to the release directory
+        run(f"tar -xzf /tmp/{file_name} -C {release_path}")
+
+        # Remove the archive from the web server
         run(f"rm /tmp/{file_name}")
-        
-        # Move the contents out of the web_static directory to the final release directory
-        run(f"mv {final_dir}web_static/* {final_dir}")
-        
-        # Remove the now-empty web_static directory
-        run(f"rm -rf {final_dir}web_static")
-        
-        # Remove the old symbolic link, if it exists
+
+        # Move the contents from web_static folder
+        run(f"mv {release_path}web_static/* {release_path}")
+
+        # Remove the web_static folder
+        run(f"rm -rf {release_path}web_static")
+
+        # Delete the current symbolic link
         run("rm -rf /data/web_static/current")
-        
-        # Create a new symbolic link to the new version
-        run(f"ln -s {final_dir} /data/web_static/current")
-        
-        print("New version deployed successfully!")
+
+        # Create a new symbolic link
+        run(f"ln -s {release_path} /data/web_static/current")
+
+        print("New version deployed!")
         return True
 
-    except Exception as e:
-        print(f"Deployment failed: {e}")
+    except Exception:
         return False
